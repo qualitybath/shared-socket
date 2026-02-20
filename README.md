@@ -51,28 +51,23 @@ ws.addEventListener('message', (event) => {
 ## How It Works
 
 ```
-    Tab A (leader)          Tab B (follower)        Tab C (follower)
+   Tab B (follower)        Tab A (leader)        Tab C (follower)
   ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
   │ SharedWebSocket │    │ SharedWebSocket │    │ SharedWebSocket │
   │                 │    │                 │    │                 │
-  │ ┌─────────────┐ │    │  onopen         │    │  onopen         │
-  │ │  Real WS    │ │    │  onmessage      │    │  onmessage      │
-  │ │  connection │ │    │  onclose        │    │  onclose        │
-  │ └──────┬──────┘ │    │  onerror        │    │  onerror        │
-  └────────┼────────┘    └────────┬────────┘    └────────┬────────┘
-           │                      │                      │
-           │          ┌───────────┴──────────────────────┘
-           │          │
-           │          │  BroadcastChannel
-           │          │  ─────────────────────────────────
-           │          │  events:  leader ──► all tabs
-           │          │  send():  any tab ──► leader ──► server
-           │          │
-      ┌────▼────┐     │
-      │         │◄────┘
-      │  Server │
-      │         │
-      └─────────┘
+  │  onopen         │    │     Real WS     │    │  onopen         │
+  │  onmessage      ├────┼──► connection ◄─┼────┤  onmessage      │
+  │  onclose        │    │        │        │    │  onclose        │
+  │  onerror        │    │        │        │    │  onerror        │
+  └─────────────────┘    └────────┼────────┘    └─────────────────┘
+   BroadcastChannel               │              BroadcastChannel
+                                  │
+                             ┌────▼────┐
+                             │  Server │
+                             └─────────┘
+
+  events:  leader ──► all tabs
+  send():  any tab ──► leader ──► server
 ```
 
 1. The first tab to create a `SharedWebSocket` for a given URL acquires an exclusive [Web Lock](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API) and becomes the **leader**. It opens the real `WebSocket` connection.
