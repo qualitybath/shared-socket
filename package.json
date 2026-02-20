@@ -1,0 +1,52 @@
+{
+	"name": "shared-socket",
+	"version": "0.1.0",
+	"description": "Drop-in WebSocket replacement with single-connection-per-URL across browser tabs",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc",
+		"typecheck": "tsc --noEmit",
+		"lint": "biome check",
+		"lint:fix": "biome check --write",
+		"format": "biome format --write",
+		"test": "bun test tests/unit",
+		"test:e2e": "playwright test",
+		"test:all": "bun test tests/unit && playwright test",
+		"prepublishOnly": "npm run build",
+		"prepare": "husky"
+	},
+	"keywords": [
+		"websocket",
+		"shared",
+		"tabs",
+		"leader-election",
+		"broadcast-channel",
+		"web-locks"
+	],
+	"license": "MIT",
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.3",
+		"@playwright/test": "^1.58.2",
+		"husky": "^9.1.7",
+		"lint-staged": "^16.2.7",
+		"serve": "^14.2.5",
+		"typescript": "^5.9.3"
+	},
+	"sideEffects": false,
+	"lint-staged": {
+		"*.ts": [
+			"biome check --write --no-errors-on-unmatched"
+		]
+	}
+}
