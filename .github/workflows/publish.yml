@@ -38,6 +38,12 @@ jobs:
       - name: Test
         run: bun test tests/unit
 
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: bun run test:e2e
+
       - name: Set version
         run: npm version "${{ inputs.version }}" --no-git-tag-version
 

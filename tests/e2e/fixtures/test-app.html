@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>SharedWebSocket E2E Test</title>
+	</head>
+	<body>
+		<div id="status">loading</div>
+		<script type="module">
+			import { SharedWebSocket } from "./index.js";
+
+			const params = new URLSearchParams(location.search);
+			const name = params.get("name") || "default";
+			const wsUrl = `ws://localhost:4174/${name}`;
+
+			const ws = new SharedWebSocket(wsUrl);
+			window.__ws = ws;
+			window.__messages = [];
+			window.__events = [];
+			window.__openCount = 0;
+
+			ws.onopen = () => {
+				window.__openCount++;
+				document.getElementById("status").textContent = "open";
+				window.__events.push("open");
+			};
+
+			ws.onmessage = (e) => {
+				window.__messages.push(e.data);
+				window.__events.push("message:" + e.data);
+			};
+
+			ws.onerror = () => {
+				window.__events.push("error");
+			};
+
+			ws.onclose = () => {
+				document.getElementById("status").textContent = "closed";
+				window.__events.push("close");
+			};
+		</script>
+	</body>
+</html>

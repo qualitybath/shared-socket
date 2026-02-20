@@ -16,13 +16,14 @@
 	],
 	"scripts": {
 		"build": "tsc",
+		"build:bundle": "bun build src/index.ts --outfile tests/e2e/fixtures/index.js",
 		"typecheck": "tsc --noEmit",
 		"lint": "biome check",
 		"lint:fix": "biome check --write",
 		"format": "biome format --write",
 		"test": "bun test tests/unit",
-		"test:e2e": "playwright test",
-		"test:all": "bun test tests/unit && playwright test",
+		"test:e2e": "bun run build:bundle && playwright test",
+		"test:all": "bun test tests/unit && bun run test:e2e",
 		"prepublishOnly": "npm run build",
 		"prepare": "husky"
 	},
