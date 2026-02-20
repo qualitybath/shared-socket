@@ -51,23 +51,28 @@ ws.addEventListener('message', (event) => {
 ## How It Works
 
 ```
-Tab A (leader)           Tab B (follower)         Tab C (follower)
-┌──────────────┐         ┌──────────────┐         ┌──────────────┐
-│SharedWebSocket│         │SharedWebSocket│         │SharedWebSocket│
-│              │         │              │         │              │
-│ Real WS  ◄──┼─────────┼── send() ────┤         │              │
-│ connection   │         │              │         │              │
-│    │         │         │              │         │              │
-│    ▼         │         │              │         │              │
-│ BroadcastChannel ─────►│ onmessage    │         │              │
-│              ├────────►│ onopen       ├────────►│ onmessage    │
-│              │         │ onclose      │         │ onopen       │
-│              │         │ onerror      │         │ onclose      │
-└──────────────┘         └──────────────┘         └──────────────┘
-       │
-       ▼
-   WebSocket
-    Server
+    Tab A (leader)          Tab B (follower)        Tab C (follower)
+  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+  │ SharedWebSocket │    │ SharedWebSocket │    │ SharedWebSocket │
+  │                 │    │                 │    │                 │
+  │ ┌─────────────┐ │    │  onopen         │    │  onopen         │
+  │ │  Real WS    │ │    │  onmessage      │    │  onmessage      │
+  │ │  connection │ │    │  onclose        │    │  onclose        │
+  │ └──────┬──────┘ │    │  onerror        │    │  onerror        │
+  └────────┼────────┘    └────────┬────────┘    └────────┬────────┘
+           │                      │                      │
+           │          ┌───────────┴──────────────────────┘
+           │          │
+           │          │  BroadcastChannel
+           │          │  ─────────────────────────────────
+           │          │  events:  leader ──► all tabs
+           │          │  send():  any tab ──► leader ──► server
+           │          │
+      ┌────▼────┐     │
+      │         │◄────┘
+      │  Server │
+      │         │
+      └─────────┘
 ```
 
 1. The first tab to create a `SharedWebSocket` for a given URL acquires an exclusive [Web Lock](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API) and becomes the **leader**. It opens the real `WebSocket` connection.
