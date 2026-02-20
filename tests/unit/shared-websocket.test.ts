@@ -258,4 +258,328 @@ describe('SharedWebSocket', () => {
 		expect(ws.bufferedAmount).toBe(0);
 		ws.close();
 	});
+
+	test('first instance becomes leader and creates real WebSocket', async () => {
+		const ws = new SharedWebSocket('ws://example.com/chat');
+		await new Promise((r) => setTimeout(r, 10));
+		expect(createdWebSockets.length).toBe(1);
+		expect(createdWebSockets[0].url).toBe('ws://example.com/chat');
+		ws.close();
+	});
+
+	test('leader fires onopen when real WebSocket opens', async () => {
+		const ws = new SharedWebSocket('ws://example.com/chat');
+		const opened = new Promise<Event>((resolve) => {
+			ws.onopen = resolve;
+		});
+		await new Promise((r) => setTimeout(r, 10));
+		createdWebSockets[0].simulateOpen();
+		const ev = await opened;
+		expect(ev.type).toBe('open');
+		expect(ws.readyState).toBe(SharedWebSocket.OPEN);
+		ws.close();
+	});
+
+	test('leader forwards protocol from real WebSocket on open', async () => {
+		const ws = new SharedWebSocket('ws://example.com/chat', ['graphql-ws']);
+		await new Promise((r) => setTimeout(r, 10));
+		createdWebSockets[0].protocol = 'graphql-ws';
+		createdWebSockets[0].simulateOpen();
+		await new Promise((r) => setTimeout(r, 10));
+		expect(ws.protocol).toBe('graphql-ws');
+		ws.close();
+	});
+
+	test('leader fires onmessage for incoming messages', async () => {
+		const ws = new SharedWebSocket('ws://example.com/chat');
+		await new Promise((r) => setTimeout(r, 10));
+		createdWebSockets[0].simulateOpen();
+		const msg = new Promise<MessageEvent>((resolve) => {
+			ws.onmessage = resolve;
+		});
+		createdWebSockets[0].simulateMessage('hello');
+		const ev = await msg;
+		expect(ev.data).toBe('hello');
+		ws.close();
+	});
+
+	test('leader fires onerror on WebSocket error', async () => {
+		const ws = new SharedWebSocket('ws://example.com/chat');
+		await new Promise((r) => setTimeout(r, 10));
+		createdWebSockets[0].simulateOpen();
+		const errored = new Promise<Event>((resolve) => {
+			ws.onerror = resolve;
+		});
+		createdWebSockets[0].simulateError();
+		const ev = await errored;
+		expect(ev.type).toBe('error');
+		ws.close();
+	});
+
+	test('leader fires onclose on WebSocket close', async () => {
+		const ws = new SharedWebSocket('ws://example.com/chat');
+		await new Promise((r) => setTimeout(r, 10));
+		createdWebSockets[0].simulateOpen();
+		const closed = new Promise<CloseEvent>((resolve) => {
+			ws.onclose = resolve;
+		});
+		createdWebSockets[0].simulateClose(1000, 'bye', true);
+		const ev = await closed;
+		expect(ev.code).toBe(1000);
+		expect(ev.reason).toBe('bye');
+		expect(ws.readyState).toBe(SharedWebSocket.CLOSED);
+		ws.close();
+	});
+
+	describe('follower behavior', () => {
+		test('follower receives onopen broadcast from leader', async () => {
+			const leader = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+
+			const follower = new SharedWebSocket('ws://example.com/chat');
+			const opened = new Promise<Event>((resolve) => {
+				follower.onopen = resolve;
+			});
+
+			createdWebSockets[0].simulateOpen();
+			await opened;
+			expect(follower.readyState).toBe(SharedWebSocket.OPEN);
+
+			leader.close();
+			follower.close();
+		});
+
+		test('follower receives onmessage broadcast from leader', async () => {
+			const leader = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+			createdWebSockets[0].simulateOpen();
+
+			const follower = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+
+			const msg = new Promise<MessageEvent>((resolve) => {
+				follower.onmessage = resolve;
+			});
+			createdWebSockets[0].simulateMessage('hello from server');
+			await msg.then((ev) => {
+				expect(ev.data).toBe('hello from server');
+			});
+
+			leader.close();
+			follower.close();
+		});
+
+		test('follower receives onerror broadcast from leader', async () => {
+			const leader = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+			createdWebSockets[0].simulateOpen();
+
+			const follower = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+
+			const errored = new Promise<Event>((resolve) => {
+				follower.onerror = resolve;
+			});
+			createdWebSockets[0].simulateError();
+			await errored.then((ev) => {
+				expect(ev.type).toBe('error');
+			});
+
+			leader.close();
+			follower.close();
+		});
+
+		test('follower receives onclose broadcast from leader', async () => {
+			const leader = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+			createdWebSockets[0].simulateOpen();
+
+			const follower = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+
+			const closed = new Promise<CloseEvent>((resolve) => {
+				follower.onclose = resolve;
+			});
+			createdWebSockets[0].simulateClose(1001, 'going away', false);
+			await closed.then((ev) => {
+				expect(ev.code).toBe(1001);
+				expect(ev.reason).toBe('going away');
+				expect(ev.wasClean).toBe(false);
+			});
+
+			leader.close();
+			follower.close();
+		});
+	});
+
+	test('late joiner receives current state and fires onopen if OPEN', async () => {
+		const leader = new SharedWebSocket('ws://example.com/chat');
+		await new Promise((r) => setTimeout(r, 10));
+		createdWebSockets[0].protocol = 'graphql-ws';
+		createdWebSockets[0].simulateOpen();
+		await new Promise((r) => setTimeout(r, 10));
+
+		const lateComer = new SharedWebSocket('ws://example.com/chat');
+		const opened = new Promise<Event>((resolve) => {
+			lateComer.onopen = resolve;
+		});
+		await opened;
+		expect(lateComer.readyState).toBe(SharedWebSocket.OPEN);
+		expect(lateComer.protocol).toBe('graphql-ws');
+
+		leader.close();
+		lateComer.close();
+	});
+
+	describe('send()', () => {
+		test('leader sends directly on real WebSocket', async () => {
+			const ws = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+			createdWebSockets[0].simulateOpen();
+			await new Promise((r) => setTimeout(r, 10));
+
+			ws.send('hello');
+			expect((createdWebSockets[0] as MockWebSocket).sent).toEqual(['hello']);
+			ws.close();
+		});
+
+		test('follower send is forwarded to leader via channel', async () => {
+			const leader = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+			createdWebSockets[0].simulateOpen();
+
+			const follower = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 50));
+
+			follower.send('from follower');
+			await new Promise((r) => setTimeout(r, 10));
+			expect((createdWebSockets[0] as MockWebSocket).sent).toEqual(['from follower']);
+
+			leader.close();
+			follower.close();
+		});
+
+		test('send throws InvalidStateError when not OPEN', () => {
+			const ws = new SharedWebSocket('ws://example.com/chat');
+			expect(() => ws.send('hello')).toThrow();
+			ws.close();
+		});
+	});
+
+	describe('close()', () => {
+		test('close sets readyState to CLOSED and fires onclose', async () => {
+			const ws = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+			createdWebSockets[0].simulateOpen();
+			await new Promise((r) => setTimeout(r, 10));
+
+			const closed = new Promise<CloseEvent>((resolve) => {
+				ws.onclose = resolve;
+			});
+			ws.close(1000, 'done');
+			const ev = await closed;
+			expect(ws.readyState).toBe(SharedWebSocket.CLOSED);
+			expect(ev.code).toBe(1000);
+			expect(ev.reason).toBe('done');
+		});
+
+		test('closing leader does not fire close on follower', async () => {
+			const leader = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+			createdWebSockets[0].simulateOpen();
+
+			const follower = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 50));
+
+			let followerCloseFired = false;
+			follower.onclose = () => {
+				followerCloseFired = true;
+			};
+
+			leader.close();
+			await new Promise((r) => setTimeout(r, 50));
+			expect(followerCloseFired).toBe(false);
+
+			follower.close();
+		});
+
+		test('closing follower does not affect leader', async () => {
+			const leader = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+			createdWebSockets[0].simulateOpen();
+
+			const follower = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 50));
+
+			follower.close();
+			expect(leader.readyState).toBe(SharedWebSocket.OPEN);
+
+			leader.close();
+		});
+
+		test('close on already-closed instance is a no-op', () => {
+			const ws = new SharedWebSocket('ws://example.com/chat');
+			ws.close();
+			ws.close();
+			expect(ws.readyState).toBe(SharedWebSocket.CLOSED);
+		});
+	});
+
+	describe('leader failover', () => {
+		test('follower becomes leader and reconnects when leader closes', async () => {
+			const leader = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+			createdWebSockets[0].simulateOpen();
+
+			const follower = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 50));
+
+			const reopened = new Promise<Event>((resolve) => {
+				follower.onopen = resolve;
+			});
+
+			leader.close();
+			await new Promise((r) => setTimeout(r, 50));
+
+			expect(createdWebSockets.length).toBe(2);
+			createdWebSockets[1].simulateOpen();
+			await reopened;
+			expect(follower.readyState).toBe(SharedWebSocket.OPEN);
+
+			follower.close();
+		});
+	});
+
+	describe('addEventListener', () => {
+		test('addEventListener("open") works alongside onopen', async () => {
+			const ws = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+
+			let handlerCalled = false;
+			let listenerCalled = false;
+			ws.onopen = () => { handlerCalled = true; };
+			ws.addEventListener('open', () => { listenerCalled = true; });
+
+			createdWebSockets[0].simulateOpen();
+			await new Promise((r) => setTimeout(r, 10));
+			expect(handlerCalled).toBe(true);
+			expect(listenerCalled).toBe(true);
+			ws.close();
+		});
+
+		test('addEventListener("message") receives data', async () => {
+			const ws = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+			createdWebSockets[0].simulateOpen();
+
+			const received = new Promise<string>((resolve) => {
+				ws.addEventListener('message', (ev) => {
+					resolve((ev as MessageEvent).data);
+				});
+			});
+			createdWebSockets[0].simulateMessage('test data');
+			expect(await received).toBe('test data');
+			ws.close();
+		});
+	});
 });
