@@ -1,6 +1,6 @@
 {
 	"name": "shared-socket",
-	"version": "0.0.1",
+	"version": "1.0.0",
 	"description": "Drop-in WebSocket replacement with single-connection-per-URL across browser tabs",
 	"type": "module",
 	"main": "dist/index.js",
