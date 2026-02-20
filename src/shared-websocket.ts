@@ -109,10 +109,7 @@ export class SharedWebSocket extends EventTarget {
 					break;
 
 				case ChannelMessageType.SEND:
-					if (
-						this._isLeader &&
-						this._ws?.readyState === WebSocket.OPEN
-					) {
+					if (this._isLeader && this._ws?.readyState === WebSocket.OPEN) {
 						this._ws.send(msg.data);
 					}
 					break;
@@ -134,10 +131,7 @@ export class SharedWebSocket extends EventTarget {
 							this._readyState === SharedWebSocket.CONNECTING;
 						this._readyState = msg.readyState;
 						this._protocol = msg.protocol;
-						if (
-							wasConnecting &&
-							msg.readyState === SharedWebSocket.OPEN
-						) {
+						if (wasConnecting && msg.readyState === SharedWebSocket.OPEN) {
 							const openEv = new Event('open');
 							this.onopen?.(openEv);
 							this.dispatchEvent(openEv);
@@ -167,11 +161,7 @@ export class SharedWebSocket extends EventTarget {
 				},
 			)
 			.catch((err) => {
-				if (
-					err instanceof DOMException &&
-					err.name === 'AbortError'
-				)
-					return;
+				if (err instanceof DOMException && err.name === 'AbortError') return;
 				throw err;
 			})
 			.finally(() => {
@@ -241,13 +231,8 @@ export class SharedWebSocket extends EventTarget {
 		try {
 			this._channel.postMessage(msg);
 		} catch (err) {
-			if (
-				err instanceof DOMException &&
-				err.name === 'InvalidStateError'
-			) {
-				this._channel = new BroadcastChannel(
-					`shared-socket:${this.url}`,
-				);
+			if (err instanceof DOMException && err.name === 'InvalidStateError') {
+				this._channel = new BroadcastChannel(`shared-socket:${this.url}`);
 				this._setupChannelListener();
 				this._channel.postMessage(msg);
 			} else {
@@ -294,9 +279,7 @@ export class SharedWebSocket extends EventTarget {
 			this._relinquish = null;
 		}
 
-		this._lockAbort.abort();
-		this._channel.close();
-
+		// Fire event before cleanup so handlers can still inspect state
 		const ev = new CloseEvent('close', {
 			code: code ?? 1000,
 			reason: reason ?? '',
@@ -304,5 +287,8 @@ export class SharedWebSocket extends EventTarget {
 		});
 		this.onclose?.(ev);
 		this.dispatchEvent(ev);
+
+		this._lockAbort.abort();
+		this._channel.close();
 	}
 }

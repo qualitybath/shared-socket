@@ -136,7 +136,7 @@ const mockLocks: LockManager = {
 
 		if (ifAvailable) {
 			if (lockState.held.has(name)) return await callback(null);
-			const release = new Promise<void>((r) => {
+			const _release = new Promise<void>((r) => {
 				lockState.held.set(name, { resolve: r });
 			});
 			try {
@@ -163,7 +163,7 @@ const mockLocks: LockManager = {
 			});
 		}
 
-		const releasePromise = new Promise<void>((r) => {
+		const _releasePromise = new Promise<void>((r) => {
 			lockState.held.set(name, { resolve: r });
 		});
 
@@ -453,7 +453,9 @@ describe('SharedWebSocket', () => {
 
 			follower.send('from follower');
 			await new Promise((r) => setTimeout(r, 10));
-			expect((createdWebSockets[0] as MockWebSocket).sent).toEqual(['from follower']);
+			expect((createdWebSockets[0] as MockWebSocket).sent).toEqual([
+				'from follower',
+			]);
 
 			leader.close();
 			follower.close();
@@ -557,8 +559,12 @@ describe('SharedWebSocket', () => {
 
 			let handlerCalled = false;
 			let listenerCalled = false;
-			ws.onopen = () => { handlerCalled = true; };
-			ws.addEventListener('open', () => { listenerCalled = true; });
+			ws.onopen = () => {
+				handlerCalled = true;
+			};
+			ws.addEventListener('open', () => {
+				listenerCalled = true;
+			});
 
 			createdWebSockets[0].simulateOpen();
 			await new Promise((r) => setTimeout(r, 10));
