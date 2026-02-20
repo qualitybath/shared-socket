@@ -6,6 +6,11 @@ export class SharedWebSocket extends EventTarget {
 	static readonly CLOSING = 2 as const;
 	static readonly CLOSED = 3 as const;
 
+	readonly CONNECTING = 0 as const;
+	readonly OPEN = 1 as const;
+	readonly CLOSING = 2 as const;
+	readonly CLOSED = 3 as const;
+
 	readonly url: string;
 
 	private _readyState: number = SharedWebSocket.CONNECTING;
@@ -19,10 +24,10 @@ export class SharedWebSocket extends EventTarget {
 	private _protocols: string | string[] | undefined;
 	private _closed = false;
 
-	onopen: ((ev: Event) => void) | null = null;
-	onmessage: ((ev: MessageEvent) => void) | null = null;
-	onerror: ((ev: Event) => void) | null = null;
-	onclose: ((ev: CloseEvent) => void) | null = null;
+	onopen: ((this: WebSocket, ev: Event) => any) | null = null;
+	onmessage: ((this: WebSocket, ev: MessageEvent) => any) | null = null;
+	onerror: ((this: WebSocket, ev: Event) => any) | null = null;
+	onclose: ((this: WebSocket, ev: CloseEvent) => any) | null = null;
 
 	binaryType: BinaryType = 'blob';
 
@@ -248,10 +253,17 @@ export class SharedWebSocket extends EventTarget {
 		});
 	}
 
-	send(data: string): void {
+	send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
 		if (this._readyState !== SharedWebSocket.OPEN) {
 			throw new DOMException(
 				"Failed to execute 'send' on 'WebSocket': Still in CONNECTING state.",
+				'InvalidStateError',
+			);
+		}
+
+		if (typeof data !== 'string') {
+			throw new DOMException(
+				"Failed to execute 'send' on 'SharedWebSocket': Only string data is supported in v1.",
 				'InvalidStateError',
 			);
 		}

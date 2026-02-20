@@ -466,6 +466,17 @@ describe('SharedWebSocket', () => {
 			expect(() => ws.send('hello')).toThrow();
 			ws.close();
 		});
+
+		test('send throws for non-string data', async () => {
+			const ws = new SharedWebSocket('ws://example.com/chat');
+			await new Promise((r) => setTimeout(r, 10));
+			createdWebSockets[0].simulateOpen();
+			await new Promise((r) => setTimeout(r, 10));
+
+			expect(() => ws.send(new ArrayBuffer(4))).toThrow();
+			expect(() => ws.send(new Blob(['hi']))).toThrow();
+			ws.close();
+		});
 	});
 
 	describe('close()', () => {
