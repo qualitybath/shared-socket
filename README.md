@@ -14,13 +14,15 @@ npm install shared-socket
 
 ## Usage
 
-Replace `WebSocket` with `SharedWebSocket`. The API is the same.
+Replace `WebSocket` with `SharedWebSocket` and pass a channel token (see [Security](#security)). The rest of the API is the same.
 
 ```ts
 import { SharedWebSocket } from 'shared-socket';
 
 // Instead of: const ws = new WebSocket('wss://example.com/feed');
-const ws = new SharedWebSocket('wss://example.com/feed');
+const ws = new SharedWebSocket('wss://example.com/feed', undefined, {
+  channelToken: sessionChannelToken, // supplied by your application, e.g. from the server
+});
 
 ws.onopen = () => {
   console.log('connected');
@@ -87,8 +89,14 @@ ws.addEventListener('message', (event) => {
 ### Constructor
 
 ```ts
-new SharedWebSocket(url: string | URL, protocols?: string | string[])
+new SharedWebSocket(
+  url: string | URL,
+  protocols: string | string[] | undefined,
+  options: { channelToken: string },
+)
 ```
+
+`options.channelToken` is required and must be a non-empty string. Every tab that should share the connection must pass the same value. The constructor throws a `TypeError` without it.
 
 ### Properties
 
@@ -136,8 +144,8 @@ Closes this instance only. Other tabs are unaffected. If this tab is the leader,
 Each unique URL gets its own independent shared connection. Two different URLs = two separate leader elections, two separate WebSocket connections.
 
 ```ts
-const feed = new SharedWebSocket('wss://example.com/feed');
-const chat = new SharedWebSocket('wss://example.com/chat');
+const feed = new SharedWebSocket('wss://example.com/feed', undefined, options);
+const chat = new SharedWebSocket('wss://example.com/chat', undefined, options);
 // These are completely independent
 ```
 
@@ -158,7 +166,7 @@ Calling `close()` on one tab does not affect other tabs. If the leader calls `cl
 
 ```ts
 // Tab A
-const ws = new SharedWebSocket('wss://example.com/feed');
+const ws = new SharedWebSocket('wss://example.com/feed', undefined, options);
 ws.close(); // Only Tab A is closed. Tab B continues normally.
 ```
 
@@ -170,11 +178,24 @@ If `readyState` is not `OPEN`, `send()` throws an `InvalidStateError`. There is 
 
 If a tab creates a `SharedWebSocket` after the connection is already open, it receives the current state from the leader and fires `onopen` immediately.
 
+## Security
+
+Tabs coordinate over a `BroadcastChannel` named `shared-socket:<url>`. Any document on the same origin can open that channel, so every channel message is authenticated with HMAC-SHA256 under a key derived from `channelToken`, bound to the socket URL, and checked for freshness:
+
+- Followers apply `open`, `message`, `error`, `close` and `connecting` events only from the current leader, in order. They accept a `state` reply only when it answers one of their own requests.
+- The leader writes a follower's `send` to the real socket only if it is addressed to the leader's current term and has not been seen before.
+- The leader never takes its own `readyState` or `protocol` from the channel.
+
+`channelToken` must come from your application out of band, for example a high-entropy value issued by your server per session. Do not derive it from the URL or store it where untrusted same-origin code can read it. The library never posts it on the channel, stores it, or uses it in the lock name.
+
+Channel messages are authenticated, not encrypted. The origin remains the trust boundary: a same-origin document can still see relayed frames on the channel, and script that can reach your page directly (for example by framing it) can use the socket as your code does. Do not treat socket messages as more trusted than your origin.
+
 ## Browser Requirements
 
 - [Web Locks API](https://caniuse.com/web-locks) (Chrome 69+, Firefox 96+, Safari 15.4+)
 - [BroadcastChannel](https://caniuse.com/broadcastchannel) (Chrome 54+, Firefox 38+, Safari 15.4+)
 - [WebSocket](https://caniuse.com/websockets) (all modern browsers)
+- [Web Crypto `crypto.subtle`](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto) (secure contexts, like Web Locks)
 
 ## Current Limitations (v1)
 
