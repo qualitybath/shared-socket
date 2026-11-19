@@ -1,1 +1,4 @@
-export { SharedWebSocket } from './shared-websocket.js';
+export {
+	SharedWebSocket,
+	type SharedWebSocketOptions,
+} from './shared-websocket.js';

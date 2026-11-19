@@ -13,7 +13,9 @@
 			const name = params.get("name") || "default";
 			const wsUrl = `ws://localhost:4174/${name}`;
 
-			const ws = new SharedWebSocket(wsUrl);
+			const ws = new SharedWebSocket(wsUrl, undefined, {
+				channelToken: "placeholder-channel-token",
+			});
 			window.__ws = ws;
 			window.__messages = [];
 			window.__events = [];
